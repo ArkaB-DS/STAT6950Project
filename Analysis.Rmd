@@ -20,10 +20,14 @@ db19 <- database %>%
   select(matches('country|2019'))
 #View(db19)
 dim(db19)
+
 # formatting NFCR column
 db19[, "NFCR2019"] <- sapply(db19[,"NFCR2019"], function (x) gsub('%', '', x))
 db19[,"NFCR2019"] <- as.numeric(db19[,"NFCR2019"])
 #str(db19)
+
+#check the number of NAs per column
+apply(is.na(db19), 2, sum)
 ```
 
 # Scatterplot Matrix
