@@ -1,0 +1,155 @@
+---
+title: "Analysis2.0"
+author: "Arkajyoti Bhattacharjee"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Read and create databases for analysis
+
+```{r echo = TRUE,eval = FALSE}
+database <- read.table("database.csv", header = TRUE, sep = ",")
+#View(database)
+library(tidyverse)
+database <- database %>%
+  mutate(RGDP2019 = (GDP2019-GDP2018)/GDP2018)
+db19 <- database %>%
+  select(matches('country|2019')) # add RGDP, rate of change in GDP from 2018-2019
+db19 <- select(db19, -GDP2019) # drop GDP2019 
+#View(db19)
+dim(db19)
+# formatting NFCR column
+db19[, "NFCR2019"] <- sapply(db19[,"NFCR2019"], function (x) gsub('%', '', x))
+db19[,"NFCR2019"] <- as.numeric(db19[,"NFCR2019"])
+#str(db19)
+
+#check the number of NAs per column
+apply(is.na(db19), 2, sum)
+
+#db19woNA <- na.omit(db19) # db19 without NA
+```
+
+
+# Exploratory Data Analysis
+
+```{r echo = TRUE, eval = TRUE, warning=FALSE}
+library(GGally)
+ggpairs(db19[, -1], progress = FALSE, 
+        columnLabels = c("NFCR", "CPI", "AML", "ARR", "WES", "GE", "PV", "RQ", 
+                         "RL", "VA", "RGDP")) 
+
+# From the scatterplot matrix, we see that RL and CPI have a high correlation (0.902), along with GE & RL (0.943), GE & RQ (0.9370), and RQ & RL (0.929).
+## indicative of multicollinearity
+# The distribution of NFCR seems to be heavy-tailed.
+# log transforms??
+# all are continuous variables
+# predictors don't seem to be related to the response much
+# We drop RL, RQ(why?--common to CPI, RQ, & GE, Y IS RELATED MORE TO CPI AND GE,
+# RQ AND GE ARE SIMILAR INTUTITIVELY)
+# EXPLAIN HOW TH RELATIONSHIP IS INTUITIVE?!
+ggpairs(db19[, -c(1, 7, 10)], progress = FALSE, 
+        columnLabels = c("NFCR", "CPI", "AML", "ARR", "WES", "PV", "RQ", 
+                         "VA", "RGDP"))
+
+# OTHER SUMMARY PLOTS
+subdb19 <- select(db19, c(GE2019, PV2019, VA2019))
+#install.packages("reshape2")
+library(reshape2)
+melted.data <- melt(subdb19)
+View(melted.data)
+p1 <- ggplot(data = melted.data, aes(x=variable, y=value))+
+  geom_boxplot(aes(fill = variable)) + #violin plot 
+  labs(
+    x= "Governance Quality"
+  )
+p1
+
+p2 <- ggplot(data = db19, aes(x=NFCR2019))+
+  geom_histogram(aes(y=..density..), fill = "magenta")+
+  geom_density(color="red")
+p3 <- ggplot(data = db19, aes(x=CPI2019))+
+  geom_histogram(aes(y=..density..), fill = "seagreen")+
+  geom_density(color="red")
+p4 <- ggplot(data = db19, aes(x=AML2019))+
+  geom_histogram(aes(y=..density..), fill = "orange")+
+  geom_density(color="red")
+p5 <- ggplot(data = db19, aes(x=WES2019))+
+  geom_histogram(aes(y=..density..), fill = "cyan")+
+  geom_density(color="red")
+
+# install.packages("patchwork")
+library(patchwork)
+(p2 +p3)/(p4 + p5)
+
+# world map + heat map of values of all variables
+install.packages("maps")
+library(maps)
+library(data.table)
+world_map <- map_data("world")
+
+##rename Country to region in db19
+db19.renamed <- db19
+names(db19.renamed)[1]<- "region" 
+
+joined.data  <- left_join(world_map, db19.renamed, by = "region")
+joined.data <- na.omit(joined.data)
+
+map1 <- ggplot(joined.data, aes(x = long, y = lat, group = group))+
+  geom_map(map = world_map, aes(x=long, y = lat, map_id= region), color =  "black", fill = "white")+
+  geom_polygon(aes(fill=ARR2019)) +
+  scale_fill_viridis_c(option = "turbo", trans = "sqrt") 
+map1 <- ggplot(joined.data, aes(x = long, y = lat, group = group))+
+  geom_map(map = world_map, aes(x=long, y = lat, map_id= region), color =  "black", fill = "white")+
+  geom_polygon(aes(fill=NFCR2019)) +
+  scale_fill_viridis_c(option = "turbo", trans = "sqrt") 
+map2 <- ggplot(joined.data, aes(x = long, y = lat, group = group))+
+  geom_map(map = world_map, aes(x=long, y = lat, map_id= region), color =  "black", fill = "white")+
+  geom_polygon(aes(fill=CPI2019)) +
+  scale_fill_viridis_c(option = "turbo", trans = "sqrt") 
+map3 <- ggplot(joined.data, aes(x = long, y = lat, group = group))+
+  geom_map(map = world_map, aes(x=long, y = lat, map_id= region), color =  "black", fill = "white")+
+  geom_polygon(aes(fill=AML2019)) +
+  scale_fill_viridis_c(option = "turbo", trans = "sqrt") 
+map4 <- ggplot(joined.data, aes(x = long, y = lat, group = group))+
+  geom_map(map = world_map, aes(x=long, y = lat, map_id= region), color =  "black", fill = "white")+
+  geom_polygon(aes(fill=ARR2019)) +
+  scale_fill_viridis_c(option = "turbo", trans = "sqrt") 
+map5 <- ggplot(joined.data, aes(x = long, y = lat, group = group))+
+  geom_map(map = world_map, aes(x=long, y = lat, map_id= region), color =  "black", fill = "white")+
+  geom_polygon(aes(fill=WES2019)) +
+  scale_fill_viridis_c(option = "turbo", trans = "sqrt") 
+map6 <- ggplot(joined.data, aes(x = long, y = lat, group = group))+
+  geom_map(map = world_map, aes(x=long, y = lat, map_id= region), color =  "black", fill = "white")+
+  geom_polygon(aes(fill=GE2019)) +
+  scale_fill_viridis_c(option = "turbo", trans = "sqrt") 
+map7 <- ggplot(joined.data, aes(x = long, y = lat, group = group))+
+  geom_map(map = world_map, aes(x=long, y = lat, map_id= region), color =  "black", fill = "white")+
+  geom_polygon(aes(fill=PV2019)) +
+  scale_fill_viridis_c(option = "turbo", trans = "sqrt") 
+map8 <- ggplot(joined.data, aes(x = long, y = lat, group = group))+
+  geom_map(map = world_map, aes(x=long, y = lat, map_id= region), color =  "black", fill = "white")+
+  geom_polygon(aes(fill=VA2019)) +
+  scale_fill_viridis_c(option = "turbo", trans = "sqrt") 
+map9 <- ggplot(joined.data, aes(x = long, y = lat, group = group))+
+  geom_map(map = world_map, aes(x=long, y = lat, map_id= region), color =  "black", fill = "white")+
+  geom_polygon(aes(fill=RGDP2019)) +
+  scale_fill_viridis_c(option = "turbo", trans = "sqrt") 
+
+(map1 + map2 + map3)/(map4 + map5 + map6)/(map7 + map8 + map9)
+```
+
+
+
+
+
+
+
+
+
+
+
+
