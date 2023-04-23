@@ -142,6 +142,135 @@ map9 <- ggplot(joined.data, aes(x = long, y = lat, group = group))+
 (map1 + map2 + map3)/(map4 + map5 + map6)/(map7 + map8 + map9)
 ```
 
+# Methods and Model Building
+
+## Transformation of Predictors
+
+```{r echo = TRUE, EVAL = TRUE}
+#install.packages("car")
+library(car)
+summary(powerTransform(cbind(CPI2019,  AML2019,  ARR2019,  WES2019, GE2019,
+                             PV2019,  VA2019, RGDP2019)~1, data = db19,
+                       family = 'yjPower'))
+```
+Based on the above transformations, we do not prefer 1.34 for `PV2019` and 2 for `VA2019` for interpretability issues. But let's keep them to see how R^2 is affect. Call it `model.noninterpretable`
+
+## Variable Selection
+
+```{r echo = TRUE, eval = TRUE}
+#install.packages("leaps")
+library(leaps)
+## yeo-johnson transformation 
+install.packages("VGAM")
+library(VGAM)
+
+(summary_best_subset<-summary(regsubsets(NFCR2019~ 
+    yeo.johnson(CPI2019, 0.5) + AML2019 + yeo.johnson(ARR2019, 0) + WES2019 + GE2019 + 
+        PV2019 + VA2019 + RGDP2019, 
+    data = na.omit(db19))))
+which.max(summary_best_subset$adjr2)
+
+## Based on this, we choose sqrt(CPI2019), log(ARR2019), WES(2019), PV2019, VA2019, RGDP2019,
+## although optimal is log(ARR2019), WES(2019), PV2019, VA2019
+
+## THis is for the non-interpretable model
+
+(summary_best_subset2<-summary(regsubsets(NFCR2019~ 
+    yeo.johnson(CPI2019, 0.5) + AML2019 + yeo.johnson(ARR2019,0) + WES2019 + GE2019 + 
+        yeo.johnson(PV2019,1.34) + yeo.johnson(VA2019, 2)  + RGDP2019, 
+    data = na.omit(db19))))
+which.max(summary_best_subset$adjr2)
+## Based on this we choose (optimal) logARR, WES, PV, VA
+
+## Verify if transformations a re required again
+summary(powerTransform(cbind(yeo.johnson(CPI2019, 0.5) + AML2019 + 
+                                yeo.johnson(ARR2019, 0) + WES2019 + GE2019 +
+                                PV2019 + VA2019 + RGDP2019)~1, data = na.omit(db19),
+                       family = 'yjPower'))
+
+## no change
+
+summary(powerTransform(cbind(yeo.johnson(ARR2019,0) +
+                               WES2019 + yeo.johnson(PV2019,1.34) +
+                               yeo.johnson(VA2019, 2))~1, 
+                             data = na.omit(db19),
+                       family = 'yjPower'))
+
+## No change required
+```
+
+## Transformation of the response
+
+
+```{r echo = TRUE, eval = TRUE}
+
+
+summary(powerTransform(lm(NFCR2019~ yeo.johnson(CPI2019, 0.5) + 
+                            yeo.johnson(ARR2019, 0) + WES2019 + 
+                            PV2019 + VA2019 + RGDP2019, 
+                          data = na.omit(db19)),
+                       family = 'yjPower'))
+## suggests y^1.62
+
+summary(powerTransform(lm(NFCR2019~yeo.johnson(ARR2019, 0) + WES2019 + 
+                            PV2019 + VA2019,
+                          data = na.omit(db19)),
+                       family = 'yjPower'))
+## suggests y^1.62
+
+summary(powerTransform(lm(NFCR2019~ yeo.johnson(ARR2019, 0) + WES2019 + 
+                            yeo.johnson(PV2019,1.34) +
+                               yeo.johnson(VA2019, 2),
+                          data = na.omit(db19)),
+                       family = 'yjPower'))
+## suggests y^1.62
+```
+
+## Model Building
+
+```{r echo =TRUE, eval = TRUE}
+## yeo-johnson transformation 
+install.packages("VGAM")
+library(VGAM)
+NFCR19 <- yeo.johnson(na.omit(db19)[, "NFCR2019"], lambda = 1.62) 
+
+mod1 <- lm(NFCR19~ yeo.johnson(ARR2019, 0) + WES2019 + 
+                            yeo.johnson(PV2019,1.34) +
+                               yeo.johnson(VA2019, 2),
+                          data = na.omit(db19))
+mod2 <- lm(NFCR2019~yeo.johnson(ARR2019, 0) + WES2019 + 
+                            PV2019 + VA2019,
+                          data = na.omit(db19))
+
+mod3 <- lm(NFCR2019~ yeo.johnson(CPI2019, 0.5) + 
+                            yeo.johnson(ARR2019, 0) + WES2019 + 
+                            PV2019 + VA2019 + RGDP2019, 
+                          data = na.omit(db19))
+summary(mod1)
+summary(mod2) # best adj R^2
+summary(mod3) # second best
+
+plot(mod2)
+plot(mod3)
+
+
+```
+
+## ACE Algorithm
+
+```{r echo = TRUE,eval = TRUE}
+install.packages("acepack")
+library(acepack)
+db19noNA <- na.omit(db19)
+ACE <- ace(y = db19noNA[, 2], x = as.matrix(db19noNA[, -c(1, 2)]))
+model.ace <- lm(ACE$ty~ACE$tx)
+summary(model.ace)
+
+for(i in names(db19)[-c(1,2)]) plot(db19noNA[, i], ACE$tx[, i])
+```
+
+
+
 
 
 
