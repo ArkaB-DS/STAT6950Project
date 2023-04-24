@@ -1,0 +1,342 @@
+---
+title: "Analysis3"
+author: "Arkajyoti Bhattacharjee"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Read and create databases for analysis
+
+```{r echo = TRUE,eval = FALSE}
+database <- read.table("database.csv", header = TRUE, sep = ",")
+#View(database)
+library(tidyverse)
+database <- database %>%
+  mutate(RGDP2019 = (GDP2019-GDP2018)/GDP2018)
+db19 <- database %>%
+  select(matches('country|2019')) # add RGDP, rate of change in GDP from 2018-2019
+db19 <- select(db19, -GDP2019) # drop GDP2019 
+#View(db19)
+dim(db19)
+# formatting NFCR column
+db19[, "NFCR2019"] <- sapply(db19[,"NFCR2019"], function (x) gsub('%', '', x))
+db19[,"NFCR2019"] <- as.numeric(db19[,"NFCR2019"])
+#str(db19)
+
+#check the number of NAs per column
+apply(is.na(db19), 2, sum)
+
+#db19woNA <- na.omit(db19) # db19 without NA
+```
+
+
+# Exploratory Data Analysis
+
+```{r echo = TRUE, eval = TRUE, warning=FALSE}
+library(GGally)
+# ggpairs(db19[, -1], progress = FALSE, 
+#         columnLabels = c("NFCR", "CPI", "AML", "ARR", "WES", "GE", "PV", "RQ", 
+#                          "RL", "VA", "RGDP")) 
+
+# From the scatterplot matrix, we see that RL and CPI have a high correlation (0.902), along with GE & RL (0.943), GE & RQ (0.9370), and RQ & RL (0.929).
+## indicative of multicollinearity
+# The distribution of NFCR seems to be heavy-tailed.
+# log transforms??
+# all are continuous variables
+# predictors don't seem to be related to the response much
+# We drop RL, RQ(why?--common to CPI, RQ, & GE, Y IS RELATED MORE TO CPI AND GE,
+# RQ AND GE ARE SIMILAR INTUTITIVELY)
+# EXPLAIN HOW THE RELATIONSHIP IS INTUITIVE?!
+
+## RATHER THAN DOING SCATTERPLOT MATRIX, DO A HEAT MAP FOR SIZE CONSTRAINT OFCOURSE
+
+cor.mat <- round(cor(na.omit(db19[, -1])),3)
+library(reshape2)
+cor.mat[lower.tri(cor.mat)] <- NA
+melted.cor.mat <- melt(cor.mat)
+
+pdf("images/cormatheat.pdf")
+ggplot(data = melted.cor.mat, aes(Var2, Var1, fill = value))+
+ geom_tile(color = "white")+
+  geom_text(aes(Var2, Var1, label = value), color = "black", size = 4) +
+ scale_fill_viridis_c(option = "turbo", na.value = "white" ,
+   limit = c(-1,1), space = "Lab", 
+   name="Pearson\nCorrelation") +
+  theme_minimal()+ 
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1))+
+theme(
+  axis.title.x = element_blank(),
+  axis.title.y = element_blank(),
+  panel.grid.major = element_blank(),
+  panel.border = element_blank(),
+  panel.background = element_blank(),
+  axis.ticks = element_blank(),
+  legend.justification = c(1, 0),
+  legend.position = c(0.6, 0.7),
+  legend.direction = "horizontal")+
+  guides(fill = guide_colorbar(barwidth = 7, barheight = 1,
+                title.position = "top", title.hjust = 0.5))
+dev.off()
+
+pdf("images/scatterplotDropping2.pdf")
+ggpairs(db19[, -c(1, 7, 10)], progress = FALSE, 
+        columnLabels = c("NFCR", "CPI", "AML", "ARR", "WES", "PV", "RQ", 
+                         "VA", "RGDP"),
+        axisLabels = "none")
+dev.off()
+# OTHER SUMMARY PLOTS
+subdb19 <- select(db19, c(GE2019, PV2019, RQ2019, RL2019, VA2019))
+#install.packages("reshape2")
+library(reshape2)
+melted.data <- melt(subdb19)
+#View(melted.data)
+p1 <- ggplot(data = melted.data, aes(x=variable, y=value))+
+  geom_boxplot(aes(fill = variable)) + #violin plot 
+  labs(
+    x= "Governance Quality"
+  )
+
+pdf("images/GQs.pdf")
+p1
+dev.off()
+
+
+p2 <- ggplot(data = db19, aes(x=NFCR2019))+
+  geom_histogram(aes(y=..density..), fill = "magenta")+
+  geom_density(color="red")
+p3 <- ggplot(data = db19, aes(x=CPI2019))+
+  geom_histogram(aes(y=..density..), fill = "seagreen")+
+  geom_density(color="red")
+p4 <- ggplot(data = db19, aes(x=AML2019))+
+  geom_histogram(aes(y=..density..), fill = "orange")+
+  geom_density(color="red")
+p5 <- ggplot(data = db19, aes(x=ARR2019))+
+  geom_histogram(aes(y=..density..), fill = "blue")+
+  geom_density(color="red")+
+  theme(axis.text.x = element_blank())
+p6 <- ggplot(data = db19, aes(x=RGDP2019))+
+  geom_histogram(aes(y=..density..), fill = "purple")+
+  geom_density(color="red")
+p7 <- ggplot(data = db19, aes(x=WES2019))+
+  geom_histogram(aes(y=..density..), fill = "cyan")+
+  geom_density(color="red")
+
+# install.packages("patchwork")
+library(patchwork)
+pdf("images/hists.pdf")
+(p2 +p3+p4)/(p6 + p5 +p7)
+dev.off()
+```
+
+# Methods and Model Building
+
+## Naive Model
+
+```{r echo =TRUE, eval =TRUE}
+model.naive <- lm(NFCR2019~CPI2019+AML2019+log(ARR2019)+WES2019+GE2019+PV2019+RQ2019+
+                    RL2019+VA2019+RGDP2019, data=db19)
+library(car)
+vif(model.naive)
+summary(model.naive)
+
+model.naive2 <- lm(NFCR2019~CPI2019+AML2019+log(ARR2019)+WES2019+GE2019+PV2019+RQ2019+
+                    VA2019+RGDP2019, data=db19)
+vif(model.naive2)
+summary(model.naive2)
+
+model.naive3 <- lm(NFCR2019~CPI2019+AML2019+log(ARR2019)+WES2019+PV2019+RQ2019+VA2019+
+                    RGDP2019, data=db19)
+vif(model.naive3)
+summary(model.naive3)
+```
+## Transformation of Predictors
+
+```{r echo = TRUE, EVAL = TRUE}
+summary(powerTransform(cbind(CPI2019, AML2019, log(ARR2019),  WES2019,
+                             PV2019, RQ2019+VA2019, RGDP2019)~1, data = db19,
+                       family = 'yjPower'))
+mod1 <- lm(NFCR2019~sqrt(CPI2019)+AML2019+log(ARR2019)+  WES2019+
+                             PV2019+RQ2019+ VA2019+ RGDP2019, data=db19)
+vif(mod1)
+summary(mod1)
+```
+## Variable Selection
+
+```{r echo = TRUE, EVAL = TRUE}
+library(VGAM)
+(summary_best_subset4<-summary(regsubsets(NFCR2019~yeo.johnson(CPI2019,0.5)+
+                                            yeo.johnson(ARR2019,0)+  WES2019+
+                             PV2019+RQ2019+ VA2019+ RGDP2019, data=na.omit(db19))))
+which.max(summary_best_subset4$adjr2)
+## keep log(ARR), WES, PV (note correlated with CPI), VA(note correalted with RQ), RGDP (my choice)
+```
+## Transformation of response
+```{r echo = TRUE,eval = TRUE}
+summary(powerTransform(lm(NFCR2019~yeo.johnson(ARR2019, 0) + WES2019 + 
+                            PV2019 + VA2019 + RGDP2019, 
+                          data = na.omit(db19)),
+                       family = 'yjPower'))
+##y^1.61
+```
+
+```{r echo  =TRUE, eval = TRUE}
+NFCR<-yeo.johnson(na.omit(db19)[,"NFCR2019"], 1.61)
+ARR<-yeo.johnson(na.omit(db19)[,"ARR2019"], 0)
+mod2<-lm(NFCR~ARR+WES2019+PV2019+VA2019+RGDP2019, data = na.omit(db19))
+summary(mod2)
+vif(mod2)
+mod3<-lm(NFCR2019~ARR+WES2019+PV2019+VA2019+RGDP2019, data = na.omit(db19))
+summary(mod3)
+vif(mod3)
+
+##mod 3 more interpretatble and has higher adj R^2
+```
+
+## Regression Diagnostics
+
+### Test for homoscedasticity
+
+```{r echo  = TRUE, eval = TRUE}
+plot(mod4, 3)
+ncvTest(mod4)
+```
+
+### Test for normality
+
+```{r echo  = TRUE, eval = TRUE}
+plot(mod3, 2)
+shapiro.test(resid(mod4))
+```
+
+### Multicollinearity
+
+```{r echo = TRUE, eval = TRUE}
+library(car)
+vif(mod4)
+```
+
+### Residual Analysis
+
+```{r echo = TRUE, eval = TRUE}
+plot(mod4, 1)
+```
+### Outlier analysis
+
+```{r echo = TRUE, eval = TRUE}
+plot(cooks.distance(mod3),type="b",pch=18,col="red")
+N = nrow(na.omit(db19))
+k = mod3$rank
+cutoff = 4/(N-k)
+abline(h=cutoff,lty=2)
+which(cooks.distance(mod3)>cutoff)
+
+db19woOut <- na.omit(db19)[-c(17,24,36,47,51,60,73),]
+db19woOut <- db19woOut[-c(8, 69, 96),]
+db19woOut <- db19woOut[-c(11),]
+ARR<-yeo.johnson(db19woOut[,"ARR2019"], 0)
+mod4<- lm(NFCR2019~ARR+WES2019+PV2019+VA2019+RGDP2019, data = db19woOut)
+
+plot(cooks.distance(mod4),type="b",pch=18,col="red")
+N = nrow(na.omit(db19woOut))
+k = mod4$rank
+cutoff = 0.5
+abline(h=cutoff,lty=2)
+which(cooks.distance(mod4)>cutoff)
+```
+
+# Alternating Conditional Expectation
+
+## ACE Algorithm
+
+```{r echo = TRUE,eval = TRUE}
+install.packages("acepack")
+library(acepack)
+db19noNA <- na.omit(db19)
+ACE <- ace(y = db19noNA[, 2], x = as.matrix(db19noNA[, -c(1, 2)]))
+model.ace <- lm(ACE$ty~ACE$tx)
+summary(model.ace)
+
+
+for(i in names(db19)[-c(1,2)]) plot(db19noNA[, i], ACE$tx[, i])
+
+plot(model.ace)
+
+library(ggplot2)
+p1 <- ggplot(data = data.frame(ACE$y, ACE$ty), aes(x=ACE$y, y = ACE$ty)) +
+  geom_line(linetype= "dashed", color= "red")+
+  labs(
+    x= "NFCR2019",
+    y = "Transformed NFCR2019"
+  )
+p2 <- ggplot(data = data.frame(x=ACE$x[1, ], y=ACE$tx[, 1]), aes(x=x, y = y)) +
+  geom_line(linetype= "dashed", color= "red")+
+  labs(
+    x= "CPI2019",
+    y = "Transformed CPI2019"
+  )
+p3 <- ggplot(data = data.frame(x=ACE$x[2, ], y=ACE$tx[, 2]), aes(x=x, y = y)) +
+  geom_line(linetype= "dashed", color= "red")+
+  labs(
+    x= "AML2019",
+    y = "Transformed AML2019"
+  )
+p4 <- ggplot(data = data.frame(x=ACE$x[3, ], y=ACE$tx[, 3]), aes(x=x, y = y)) +
+  geom_line(linetype= "dashed", color= "red")+
+  labs(
+    x= "ARR2019",
+    y = "Transformed ARR2019"
+  )
+p5 <- ggplot(data = data.frame(x=ACE$x[4, ], y=ACE$tx[, 4]), aes(x=x, y = y)) +
+  geom_line(linetype= "dashed", color= "red")+
+  labs(
+    x= "WES2019",
+    y = "Transformed WES2019"
+  )
+p6 <- ggplot(data = data.frame(x=ACE$x[1, ], y=ACE$tx[, 1]), aes(x=x, y = y)) +
+  geom_line(linetype= "dashed", color= "red")+
+  labs(
+    x= "GE2019",
+    y = "Transformed GE2019"
+  )
+p7 <- ggplot(data = data.frame(x=ACE$x[1, ], y=ACE$tx[, 1]), aes(x=x, y = y)) +
+  geom_line(linetype= "dashed", color= "red")+
+  labs(
+    x= "PV2019",
+    y = "Transformed PV2019"
+  )
+p8 <- ggplot(data = data.frame(x=ACE$x[1, ], y=ACE$tx[, 1]), aes(x=x, y = y)) +
+  geom_line(linetype= "dashed", color= "red")+
+  labs(
+    x= "RQ2019",
+    y = "Transformed RQ2019"
+  )
+p9 <- ggplot(data = data.frame(x=ACE$x[1, ], y=ACE$tx[, 1]), aes(x=x, y = y)) +
+  geom_line(linetype= "dashed", color= "red")+
+  labs(
+    x= "RL2019",
+    y = "Transformed RL2019"
+  )
+p10 <- ggplot(data = data.frame(x=ACE$x[1, ], y=ACE$tx[, 1]), aes(x=x, y = y)) +
+  geom_line(linetype= "dashed", color= "red")+
+  labs(
+    x= "VA2019",
+    y = "Transformed VA2019"
+  )
+p11 <- ggplot(data = data.frame(x=ACE$x[1, ], y=ACE$tx[, 1]), aes(x=x, y = y)) +
+  geom_line(linetype= "dashed", color= "red")+
+  labs(
+    x= "RGDP2019",
+    y = "Transformed RGDP2019"
+  )
+
+
+```
+
+
+
+
