@@ -254,7 +254,7 @@ which(cooks.distance(mod4)>cutoff)
 ## ACE Algorithm
 
 ```{r echo = TRUE,eval = TRUE}
-install.packages("acepack")
+#install.packages("acepack")
 library(acepack)
 db19noNA <- na.omit(db19)
 ACE <- ace(y = db19noNA[, 2], x = as.matrix(db19noNA[, -c(1, 2)]))
@@ -262,78 +262,77 @@ model.ace <- lm(ACE$ty~ACE$tx)
 summary(model.ace)
 
 
-for(i in names(db19)[-c(1,2)]) plot(db19noNA[, i], ACE$tx[, i])
+#for(i in names(db19)[-c(1,2)]) plot(db19noNA[, i], ACE$tx[, i])
 
-plot(model.ace)
+#plot(model.ace)
 
 library(ggplot2)
 p1 <- ggplot(data = data.frame(ACE$y, ACE$ty), aes(x=ACE$y, y = ACE$ty)) +
   geom_line(linetype= "dashed", color= "red")+
   labs(
     x= "NFCR2019",
-    y = "Transformed NFCR2019"
+    y = "Transformed"
   )
 p2 <- ggplot(data = data.frame(x=ACE$x[1, ], y=ACE$tx[, 1]), aes(x=x, y = y)) +
   geom_line(linetype= "dashed", color= "red")+
   labs(
     x= "CPI2019",
-    y = "Transformed CPI2019"
+    y = "Transformed"
   )
 p3 <- ggplot(data = data.frame(x=ACE$x[2, ], y=ACE$tx[, 2]), aes(x=x, y = y)) +
   geom_line(linetype= "dashed", color= "red")+
   labs(
     x= "AML2019",
-    y = "Transformed AML2019"
+    y = "Transformed"
   )
 p4 <- ggplot(data = data.frame(x=ACE$x[3, ], y=ACE$tx[, 3]), aes(x=x, y = y)) +
   geom_line(linetype= "dashed", color= "red")+
   labs(
     x= "ARR2019",
-    y = "Transformed ARR2019"
+    y = "Transformed"
   )
 p5 <- ggplot(data = data.frame(x=ACE$x[4, ], y=ACE$tx[, 4]), aes(x=x, y = y)) +
   geom_line(linetype= "dashed", color= "red")+
   labs(
     x= "WES2019",
-    y = "Transformed WES2019"
+    y = "Transformed"
   )
-p6 <- ggplot(data = data.frame(x=ACE$x[1, ], y=ACE$tx[, 1]), aes(x=x, y = y)) +
+p6 <- ggplot(data = data.frame(x=ACE$x[5, ], y=ACE$tx[, 5]), aes(x=x, y = y)) +
   geom_line(linetype= "dashed", color= "red")+
   labs(
     x= "GE2019",
-    y = "Transformed GE2019"
+    y = "Transformed"
   )
-p7 <- ggplot(data = data.frame(x=ACE$x[1, ], y=ACE$tx[, 1]), aes(x=x, y = y)) +
+p7 <- ggplot(data = data.frame(x=ACE$x[6, ], y=ACE$tx[, 6]), aes(x=x, y = y)) +
   geom_line(linetype= "dashed", color= "red")+
   labs(
     x= "PV2019",
-    y = "Transformed PV2019"
+    y = "Transformed"
   )
-p8 <- ggplot(data = data.frame(x=ACE$x[1, ], y=ACE$tx[, 1]), aes(x=x, y = y)) +
+p8 <- ggplot(data = data.frame(x=ACE$x[7, ], y=ACE$tx[, 7]), aes(x=x, y = y)) +
   geom_line(linetype= "dashed", color= "red")+
   labs(
     x= "RQ2019",
-    y = "Transformed RQ2019"
+    y = "Transformed"
   )
-p9 <- ggplot(data = data.frame(x=ACE$x[1, ], y=ACE$tx[, 1]), aes(x=x, y = y)) +
+p9 <- ggplot(data = data.frame(x=ACE$x[8, ], y=ACE$tx[, 8]), aes(x=x, y = y)) +
   geom_line(linetype= "dashed", color= "red")+
   labs(
     x= "RL2019",
-    y = "Transformed RL2019"
+    y = "Transformed"
   )
-p10 <- ggplot(data = data.frame(x=ACE$x[1, ], y=ACE$tx[, 1]), aes(x=x, y = y)) +
+p10 <- ggplot(data = data.frame(x=ACE$x[9, ], y=ACE$tx[, 9]), aes(x=x, y = y)) +
   geom_line(linetype= "dashed", color= "red")+
   labs(
     x= "VA2019",
-    y = "Transformed VA2019"
+    y = "Transformed"
   )
-p11 <- ggplot(data = data.frame(x=ACE$x[1, ], y=ACE$tx[, 1]), aes(x=x, y = y)) +
+p11 <- ggplot(data = data.frame(x=ACE$x[10, ], y=ACE$tx[, 10]), aes(x=x, y = y)) +
   geom_line(linetype= "dashed", color= "red")+
   labs(
     x= "RGDP2019",
-    y = "Transformed RGDP2019"
+    y = "Transformed"
   )
-
 
 ```
 
