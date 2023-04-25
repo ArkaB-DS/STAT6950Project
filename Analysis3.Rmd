@@ -1,6 +1,6 @@
 ---
 title: "Analysis3"
-author: "Arkajyoti Bhattacharjee, Rezoanoor Rahman"
+author: "Arkajyoti Bhattacharjee"
 date: "`r Sys.Date()`"
 output: pdf_document
 ---
@@ -675,6 +675,10 @@ ks.test(resid(model.ace), pcauchy, 0, 10^-.6)
 
 
 ```{r}
+
+database <- database %>%
+  mutate(RGDP2014 = (GDP2014-GDP2013)/GDP2013)
+
 
 db14 <- database %>%
   select(matches('country|2014')) # add RGDP, rate of change in GDP from 2018-2019
