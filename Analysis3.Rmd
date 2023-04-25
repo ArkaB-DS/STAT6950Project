@@ -678,7 +678,7 @@ ks.test(resid(model.ace), pcauchy, 0, 10^-.6)
 
 db14 <- database %>%
   select(matches('country|2014')) # add RGDP, rate of change in GDP from 2018-2019
-db14 <- select(db15, -GDP2014) # drop GDP2019 
+db14 <- select(db14, -GDP2014) # drop GDP2019 
 
 
 db14[, "NFCR2014"] <- sapply(db14[,"NFCR2014"], function (x) gsub('%', '', x))
@@ -766,7 +766,8 @@ library(xlsx)
 library(rvest)
 library(magrittr)
 library(ggmap)
-
+library(rnaturalearth)
+library(rnaturalearthdata)
 
 setwd("D:/OSU Course Materials/6950 - Applied Statistics 2/Project")
 
@@ -808,6 +809,5 @@ b+scale_fill_gradient(low="red", high="blue")+
 dev.off()
 
 ```
-
 
 
