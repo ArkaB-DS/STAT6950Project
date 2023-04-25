@@ -667,3 +667,138 @@ dev.off()
 ks.test(resid(mod4), pcauchy, 0, 10^-.6)
 ks.test(resid(model.ace), pcauchy, 0, 10^-.6)
 ```
+
+
+# RRR
+
+
+
+
+```{r}
+ARR<-yeo.johnson(na.omit(db14)[,"ARR2014"], 0)
+mod3<-lm(NFCR2014~ARR+WES2014+PV2014+VA2014+RGDP2014, data = na.omit(db14))
+
+
+plot(cooks.distance(mod3),type="b",pch=18,col="red")
+N = nrow(na.omit(db14))
+k = mod3$rank
+cutoff = 4/(N-k)
+abline(h=cutoff,lty=2)
+which(cooks.distance(mod3)>cutoff)
+
+db14woOut <- na.omit(db14)
+ARR<-yeo.johnson(db14woOut[,"ARR2014"], 0)
+mod4_2014<- lm(NFCR2014~ARR+WES2014+PV2014+VA2014+RGDP2014, data = db14woOut)
+
+
+################################################################################
+
+coef_2014=coef(mod4_2014)[-1]
+
+Var_2014=vcov(mod4_2014)[-1,-1]
+
+coef_2019=coef(mod4)[-1]
+
+Var_2019=vcov(mod4)[-1,-1]
+
+
+n_2014=dim(db14woOut)[1]
+
+n_2019=dim(db19woOut)[1]
+
+
+
+n=n_2014+n_2019
+
+
+coef_2014=as.matrix(coef_2014,4,1)
+coef_2019=as.matrix(coef_2019,4,1)
+
+
+
+
+write.csv(data.frame(coef_2019,coef_2014),"Coefs.csv")
+
+
+Var=((n_2014-1)*Var_2014+(n_2019-1)*Var_2019)/(n_2014+n_2019-2)
+
+T2=t(coef_2019-coef_2014) %*% solve(Var*(1/n_2014+1/n_2019)) %*% (coef_2019-coef_2014)
+
+
+k=dim(coef_2014)[1]
+
+
+F_st=(n-k)/(k*(n-1))*T2
+
+
+p_value=pf(F_st[1][1],k,n-k,lower.tail = FALSE)
+
+
+D_F=data.frame(n_2019,n_2014,k,T2,F_st,p_value)
+
+
+write.csv(D_F,"D_F.csv")
+
+
+```
+
+
+
+
+
+```{r}
+rm(list=ls())
+
+
+library(readxl)
+library(tidyverse)
+library(xlsx)
+library(rvest)
+library(magrittr)
+library(ggmap)
+
+
+setwd("D:/OSU Course Materials/6950 - Applied Statistics 2/Project")
+
+Data=read.xlsx("database.xlsx",sheetIndex = 1)
+
+
+Data <- Data %>%
+  mutate(RGDP2019 = (GDP2019-GDP2018)/GDP2018,
+         RGDP2014 = (GDP2014-GDP2013)/GDP2013)
+
+
+Data$name=Data$Country
+
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+world[which(world$name=="United States"),]$name="United States of America"
+
+DD=world %>% left_join(Data)
+
+#DD= DD %>% filter(name!="Antarctica")
+
+a=ggplot(data = DD,aes(fill=NFCR2019)) +
+  geom_sf()+theme_bw()
+
+pdf("Map_deforest.pdf")
+a+scale_fill_gradient(low="red", high="yellow")+
+  coord_sf(crs = "+proj=laea +lat_0=0 +lon_0=0 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +units=m +no_defs ")
+dev.off()
+
+
+
+b=ggplot(data = DD,aes(fill=RGDP2019)) +
+  geom_sf()+theme_bw()
+
+
+pdf("Map_rgdp.pdf")
+b+scale_fill_gradient(low="red", high="blue")+
+  coord_sf(crs = "+proj=laea +lat_0=0 +lon_0=0 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +units=m +no_defs ")
+dev.off()
+
+```
+
+
+
+
