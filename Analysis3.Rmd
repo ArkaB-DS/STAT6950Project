@@ -13,27 +13,18 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r echo = TRUE,eval = FALSE}
 database <- read.table("database.csv", header = TRUE, sep = ",")
-#View(database)
 library(tidyverse)
 database <- database %>%
   mutate(RGDP2019 = (GDP2019-GDP2018)/GDP2018)
 db19 <- database %>%
   select(matches('country|2019')) # add RGDP, rate of change in GDP from 2018-2019
 db19 <- select(db19, -GDP2019) # drop GDP2019 
-#View(db19)
-dim(db19)
 # formatting NFCR column
 db19[, "NFCR2019"] <- sapply(db19[,"NFCR2019"], function (x) gsub('%', '', x))
 db19[,"NFCR2019"] <- as.numeric(db19[,"NFCR2019"])
-#str(db19)
-
 #check the number of NAs per column
 apply(is.na(db19), 2, sum)
-
-#db19woNA <- na.omit(db19) # db19 without NA
 ```
-
-
 # Exploratory Data Analysis
 
 ```{r echo = TRUE, eval = TRUE, warning=FALSE}
@@ -157,23 +148,51 @@ summary(model.naive3)
 ## Transformation of Predictors
 
 ```{r echo = TRUE, EVAL = TRUE}
+library(car)
 summary(powerTransform(cbind(CPI2019, AML2019, log(ARR2019),  WES2019,
-                             PV2019, RQ2019+VA2019, RGDP2019)~1, data = db19,
+                             PV2019, RQ2019,VA2019, RGDP2019)~1, data = db19,
                        family = 'yjPower'))
 mod1 <- lm(NFCR2019~sqrt(CPI2019)+AML2019+log(ARR2019)+  WES2019+
                              PV2019+RQ2019+ VA2019+ RGDP2019, data=db19)
+
 vif(mod1)
 summary(mod1)
+
+modx <- lm(NFCR2019~sqrt(CPI2019)+AML2019+log(ARR2019)+  WES2019+
+                             I(PV2019^1.33)+RQ2019+ I(VA2019^2)+ RGDP2019, data=db19)
+vif(modx)
+summary(modx)
 ```
 ## Variable Selection
 
 ```{r echo = TRUE, EVAL = TRUE}
-library(VGAM)
-(summary_best_subset4<-summary(regsubsets(NFCR2019~yeo.johnson(CPI2019,0.5)+
+library(leaps)
+(summary_best_subset1<-summary(regsubsets(NFCR2019~yeo.johnson(CPI2019,0.5)+
                                             yeo.johnson(ARR2019,0)+  WES2019+
                              PV2019+RQ2019+ VA2019+ RGDP2019, data=na.omit(db19))))
-which.max(summary_best_subset4$adjr2)
+which.max(summary_best_subset1$adjr2)
 ## keep log(ARR), WES, PV (note correlated with CPI), VA(note correalted with RQ), RGDP (my choice)
+(summary_best_subsetx<-summary(regsubsets(NFCR2019~yeo.johnson(CPI2019,0.5)+
+                                            yeo.johnson(ARR2019,0)+  WES2019+
+                             yeo.johnson(PV2019,1.33)+RQ2019+ yeo.johnson(VA2019,2)+ RGDP2019, data=na.omit(db19))))
+which.max(summary_best_subsetx$adjr2)
+## keep log(ARR), WES, PV (note correlated with CPI), VA(note correlated with RQ), RGDP (my choice)
+
+## ARR, WES PV VA
+## ARR WES PV RQ modx
+modx2 <- lm(NFCR2019~log(ARR2019)+  WES2019+
+                             I(PV2019^1.33)+RQ2019+ RGDP2019, data=db19)
+modx3 <- lm(NFCR2019~log(ARR2019)+  WES2019+
+                             PV2019+RQ2019+ RGDP2019, data=db19)
+mod12 <- lm(NFCR2019~log(ARR2019)+  WES2019+
+                             PV2019+VA2019+ RGDP2019, data=db19)
+mod13 <- lm(NFCR2019~log(ARR2019)+  WES2019+
+                             PV2019+VA2019, data=db19)
+summary(modx2)$adj.r.squared
+summary(modx3)$adj.r.squared
+summary(mod12)$adj.r.squared # highest
+summary(mod13)$adj.r.squared
+
 ```
 ## Transformation of response
 ```{r echo = TRUE,eval = TRUE}
@@ -194,44 +213,16 @@ mod3<-lm(NFCR2019~ARR+WES2019+PV2019+VA2019+RGDP2019, data = na.omit(db19))
 summary(mod3)
 vif(mod3)
 
-##mod 3 more interpretatble and has higher adj R^2
+##mod 3 more interpretable and has higher adj R^2
 ```
 
 ## Regression Diagnostics
 
-### Test for homoscedasticity
-
-```{r echo  = TRUE, eval = TRUE}
-plot(mod4, 3)
-ncvTest(mod4)
-```
-
-### Test for normality
-
-```{r echo  = TRUE, eval = TRUE}
-plot(mod3, 2)
-shapiro.test(resid(mod4))
-```
-
-### Multicollinearity
-
-```{r echo = TRUE, eval = TRUE}
-library(car)
-vif(mod4)
-```
-
-### Residual Analysis
-
-```{r echo = TRUE, eval = TRUE}
-plot(mod4, 1)
-```
 ### Outlier analysis
 
 ```{r echo = TRUE, eval = TRUE}
 plot(cooks.distance(mod3),type="b",pch=18,col="red")
-N = nrow(na.omit(db19))
-k = mod3$rank
-cutoff = 4/(N-k)
+cutoff = 4*mean(cooks.distance(mod3))
 abline(h=cutoff,lty=2)
 which(cooks.distance(mod3)>cutoff)
 
@@ -242,12 +233,154 @@ ARR<-yeo.johnson(db19woOut[,"ARR2019"], 0)
 mod4<- lm(NFCR2019~ARR+WES2019+PV2019+VA2019+RGDP2019, data = db19woOut)
 
 plot(cooks.distance(mod4),type="b",pch=18,col="red")
-N = nrow(na.omit(db19woOut))
-k = mod4$rank
-cutoff = 0.5
+cutoff = 4*mean(cooks.distance(mod3))
 abline(h=cutoff,lty=2)
 which(cooks.distance(mod4)>cutoff)
+
+which(hatvalues(mod3)>2*mod3$rank/length(hatvalues(mod3)))
+db19woOut2 <- na.omit(db19)[-c(3,21, 31,74,88,99,100,107),]
+db19woOut2 <- db19woOut2[-c(3, 41, 67, 97),]
+db19woOut2 <- db19woOut2[-c(55),]
+db19woOut2 <- db19woOut2[-c(94),]
+db19woOut2 <- db19woOut2[-c(21, 46, 66),]
+db19woOut2 <- db19woOut2[-c(15, 31, 41, 65),]
+ARR<-yeo.johnson(db19woOut2[,"ARR2019"], 0)
+mod5<- lm(NFCR2019~ARR+WES2019+PV2019+VA2019+RGDP2019, data = db19woOut2)
+ncvTest(mod5)
+which(hatvalues(mod5)>2*mod5$rank/length(hatvalues(mod5)))
+
+
+
+
+which(abs(rstandard(mod3))>3)
+# 24 51 73 
+db19woOut3 <- na.omit(db19)[-c(24, 51, 73),]
+ARR<-yeo.johnson(db19woOut3[,"ARR2019"], 0)
+mod6<- lm(NFCR2019~ARR+WES2019+PV2019+VA2019+RGDP2019, data = db19woOut3)
+ncvTest(mod6)
+which(abs(rstandard(mod6))>3)
+
+db19woOut3 <- db19woOut3[-c(17,35,46),]
+ARR<-yeo.johnson(db19woOut3[,"ARR2019"], 0)
+mod6<- lm(NFCR2019~ARR+WES2019+PV2019+VA2019+RGDP2019, data = db19woOut3)
+ncvTest(mod6)
+which(abs(rstandard(mod6))>3)
+
+db19woOut3 <- db19woOut3[-c(70),]
+ARR<-yeo.johnson(db19woOut3[,"ARR2019"], 0)
+mod6<- lm(yeo.johnson(NFCR2019,0)~ARR+WES2019+PV2019+VA2019+RGDP2019, data = db19woOut3)
+ncvTest(mod6)
+which(abs(rstandard(mod6))>3)
+
+plev1 <- ggplot(data.frame(x=1:length(hatvalues(mod3)),y = hatvalues(mod3)),
+                        aes(x=x, y=y))+
+  geom_point()+
+ geom_line(color = "blue")+
+  labs(
+    x = "Data point",
+    y = "Leverage"
+  )+
+  geom_hline(yintercept = 3*mod3$rank/length(hatvalues(mod3)),
+             color = "red", linetype = "dashed")
+
+pcook1 <- ggplot(data.frame(x=1:length(cooks.distance(mod3)),y = cooks.distance(mod3)),
+                        aes(x=x, y=y))+
+  geom_point()+
+ geom_line(color = "blue")+
+  labs(
+    x = "Data point",
+    y = "Cook's Distance"
+  )+
+  geom_hline(yintercept = 0.5,
+             color = "red", linetype = "dashed")
+prstud1 <- ggplot(data.frame(x=1:length(rstudent(mod3)),y = abs(rstudent(mod3))),
+                        aes(x=x, y=y))+
+  geom_point()+
+ geom_line(color = "blue")+
+  labs(
+    x = "Data point",
+    y = "Absolute Studentized Residuals"
+  )+
+  geom_hline(yintercept = 3,
+             color = "red", linetype = "dashed")
+
+
+plev2 <- ggplot(data.frame(x=1:length(hatvalues(mod4)),y = hatvalues(mod4)),
+                        aes(x=x, y=y))+
+  geom_point()+
+ geom_line(color = "blue")+
+  labs(
+    x = "Data point",
+    y = "Leverage"
+  )+
+  geom_hline(yintercept = 3*mod4$rank/length(hatvalues(mod4)),
+             color = "red", linetype = "dashed")
+
+pcook2 <- ggplot(data.frame(x=1:length(cooks.distance(mod4)),y = cooks.distance(mod4)),
+                        aes(x=x, y=y))+
+  geom_point()+
+ geom_line(color = "blue")+
+  labs(
+    x = "Data point",
+    y = "Cook's Distance"
+  )+
+  geom_hline(yintercept = 2*mean(cooks.distance(mod4)),
+             color = "red", linetype = "dashed")
+prstud2 <- ggplot(data.frame(x=1:length(rstudent(mod4)),y = abs(rstudent(mod4))),
+                        aes(x=x, y=y))+
+  geom_point()+
+ geom_line(color = "blue")+
+  labs(
+    x = "Data point",
+    y = "Absolute Studentized Residuals"
+  )+
+  geom_hline(yintercept = 3,
+             color = "red", linetype = "dashed")
+
+library(patchwork)
+pdf("images/outlier.pdf")
+(plev1+plev2)/(prstud1+prstud2)
+dev.off()
 ```
+
+### Test for homoscedasticity
+
+```{r echo  = TRUE, eval = TRUE}
+pdf("images/homopara.pdf")
+ggplot(data.frame(x=fitted(mod4), y = rstandard(mod4)), aes(x=x,y = y))+
+  geom_point(color = "blue" )+
+  geom_hline(yintercept = 0, linetype="dashed", color = "red")+
+  labs(
+    x = "Fitted Values",
+    y = "Standardized Residuals",
+  )
+dev.off()
+ncvTest(mod4)
+```
+
+### Test for normality
+
+```{r echo  = TRUE, eval = TRUE}
+shapiro.test(resid(mod4))
+pqq<-ggplot(data.frame(y=rstandard(mod4)), aes(sample = y))+
+  stat_qq(color="blue")+
+  stat_qq_line(color="red")+
+  labs(
+    x="Theoretical Quantiles",
+    y="Stanadaardized Residuals"
+  )
+pdf("images/qqplot.pdf")
+pqq
+dev.off()
+```
+
+### Multicollinearity
+
+```{r echo = TRUE, eval = TRUE}
+library(car)
+vif(mod4)
+```
+
 
 # Alternating Conditional Expectation
 
@@ -258,11 +391,12 @@ which(cooks.distance(mod4)>cutoff)
 library(acepack)
 db19noNA <- na.omit(db19)
 ACE <- ace(y = db19noNA[, 2], x = as.matrix(db19noNA[, -c(1, 2)]))
-model.ace <- lm(ACE$ty~ACE$tx)
+ACEdf<-cbind.data.frame(NFCR2019=ACE$ty, ACE$tx) 
+model.ace <- lm(NFCR2019~., data = ACEdf)
 summary(model.ace)
 
 
-#for(i in names(db19)[-c(1,2)]) plot(db19noNA[, i], ACE$tx[, i])
+for(i in names(db19)[-c(1,2)]) plot(db19noNA[, i], ACE$tx[, i])
 
 #plot(model.ace)
 
@@ -333,7 +467,6 @@ p11 <- ggplot(data = data.frame(x=ACE$x[10, ], y=ACE$tx[, 10]), aes(x=x, y = y))
     x= "RGDP2019",
     y = "Transformed"
   )
-
 ```
 
 
