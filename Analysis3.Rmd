@@ -29,6 +29,8 @@ apply(is.na(db19), 2, sum)
 
 ```{r echo = TRUE, eval = TRUE, warning=FALSE}
 library(GGally)
+
+## FULL SCATTERPLOT MATRIX TOO SPACIOUS
 # ggpairs(db19[, -1], progress = FALSE, 
 #         columnLabels = c("NFCR", "CPI", "AML", "ARR", "WES", "GE", "PV", "RQ", 
 #                          "RL", "VA", "RGDP")) 
@@ -158,6 +160,8 @@ mod1 <- lm(NFCR2019~sqrt(CPI2019)+AML2019+log(ARR2019)+  WES2019+
 vif(mod1)
 summary(mod1)
 
+## EXPLORING ALL SUGGESTED TRANSFORMATIONS--NOT INTERPRETABLE
+
 modx <- lm(NFCR2019~sqrt(CPI2019)+AML2019+log(ARR2019)+  WES2019+
                              I(PV2019^1.33)+RQ2019+ I(VA2019^2)+ RGDP2019, data=db19)
 vif(modx)
@@ -180,6 +184,8 @@ which.max(summary_best_subsetx$adjr2)
 
 ## ARR, WES PV VA
 ## ARR WES PV RQ modx
+
+## EXPLORING ADJUSTED R^2 FOR DIFFERNET VARIABLE SELECTION MODELS
 modx2 <- lm(NFCR2019~log(ARR2019)+  WES2019+
                              I(PV2019^1.33)+RQ2019+ RGDP2019, data=db19)
 modx3 <- lm(NFCR2019~log(ARR2019)+  WES2019+
@@ -192,7 +198,6 @@ summary(modx2)$adj.r.squared
 summary(modx3)$adj.r.squared
 summary(mod12)$adj.r.squared # highest
 summary(mod13)$adj.r.squared
-
 ```
 ## Transformation of response
 ```{r echo = TRUE,eval = TRUE}
@@ -201,6 +206,8 @@ summary(powerTransform(lm(NFCR2019~yeo.johnson(ARR2019, 0) + WES2019 +
                           data = na.omit(db19)),
                        family = 'yjPower'))
 ##y^1.61
+
+## NOT INTERPRETABLE -- SO IGNORE
 ```
 
 ```{r echo  =TRUE, eval = TRUE}
@@ -283,16 +290,16 @@ plev1 <- ggplot(data.frame(x=1:length(hatvalues(mod3)),y = hatvalues(mod3)),
   geom_hline(yintercept = 3*mod3$rank/length(hatvalues(mod3)),
              color = "red", linetype = "dashed")
 
-pcook1 <- ggplot(data.frame(x=1:length(cooks.distance(mod3)),y = cooks.distance(mod3)),
-                        aes(x=x, y=y))+
-  geom_point()+
- geom_line(color = "blue")+
-  labs(
-    x = "Data point",
-    y = "Cook's Distance"
-  )+
-  geom_hline(yintercept = 0.5,
-             color = "red", linetype = "dashed")
+# pcook1 <- ggplot(data.frame(x=1:length(cooks.distance(mod3)),y = cooks.distance(mod3)),
+#                         aes(x=x, y=y))+
+#   geom_point()+
+#  geom_line(color = "blue")+
+#   labs(
+#     x = "Data point",
+#     y = "Cook's Distance"
+#   )+
+#   geom_hline(yintercept = 0.5,
+#              color = "red", linetype = "dashed")
 prstud1 <- ggplot(data.frame(x=1:length(rstudent(mod3)),y = abs(rstudent(mod3))),
                         aes(x=x, y=y))+
   geom_point()+
@@ -316,16 +323,16 @@ plev2 <- ggplot(data.frame(x=1:length(hatvalues(mod4)),y = hatvalues(mod4)),
   geom_hline(yintercept = 3*mod4$rank/length(hatvalues(mod4)),
              color = "red", linetype = "dashed")
 
-pcook2 <- ggplot(data.frame(x=1:length(cooks.distance(mod4)),y = cooks.distance(mod4)),
-                        aes(x=x, y=y))+
-  geom_point()+
- geom_line(color = "blue")+
-  labs(
-    x = "Data point",
-    y = "Cook's Distance"
-  )+
-  geom_hline(yintercept = 2*mean(cooks.distance(mod4)),
-             color = "red", linetype = "dashed")
+# pcook2 <- ggplot(data.frame(x=1:length(cooks.distance(mod4)),y = cooks.distance(mod4)),
+#                         aes(x=x, y=y))+
+#   geom_point()+
+#  geom_line(color = "blue")+
+#   labs(
+#     x = "Data point",
+#     y = "Cook's Distance"
+#   )+
+#   geom_hline(yintercept = 2*mean(cooks.distance(mod4)),
+#              color = "red", linetype = "dashed")
 prstud2 <- ggplot(data.frame(x=1:length(rstudent(mod4)),y = abs(rstudent(mod4))),
                         aes(x=x, y=y))+
   geom_point()+
@@ -367,7 +374,7 @@ pqq<-ggplot(data.frame(y=rstandard(mod4)), aes(sample = y))+
   stat_qq_line(color="red")+
   labs(
     x="Theoretical Quantiles",
-    y="Stanadaardized Residuals"
+    y="Standardized Residuals"
   )
 pdf("images/qqplot.pdf")
 pqq
@@ -395,10 +402,6 @@ ACEdf<-cbind.data.frame(NFCR2019=ACE$ty, ACE$tx)
 model.ace <- lm(NFCR2019~., data = ACEdf)
 summary(model.ace)
 
-
-for(i in names(db19)[-c(1,2)]) plot(db19noNA[, i], ACE$tx[, i])
-
-#plot(model.ace)
 
 library(ggplot2)
 p1 <- ggplot(data = data.frame(ACE$y, ACE$ty), aes(x=ACE$y, y = ACE$ty)) +
@@ -469,6 +472,198 @@ p11 <- ggplot(data = data.frame(x=ACE$x[10, ], y=ACE$tx[, 10]), aes(x=x, y = y))
   )
 ```
 
+## Regression Diagnostics
+
+### Outlier analysis
+
+```{r echo = TRUE, eval = TRUE}
+db19noNA <- na.omit(db19)
+ACE <- ace(y = db19noNA[, 2], x = as.matrix(db19noNA[, -c(1, 2)]))
+ACEdf<-cbind.data.frame(NFCR2019=ACE$ty, ACE$tx) 
+model.ace <- lm(NFCR2019~., data = ACEdf)
+
+
+plot(cooks.distance(model.ace),type="b",pch=18,col="red")
+cutoff = 4*mean(cooks.distance(model.ace))
+abline(h=cutoff,lty=2)
+plot(abs(hatvalues(model.ace)), type= "b")
+abline(h=3*model.ace$rank/length(hatvalues(model.ace)))
+plot(abs(rstandard(model.ace)), type= "b")
+abline(h=3)
+
+which(cooks.distance(model.ace)>cutoff)
+which(abs(hatvalues(model.ace))>3*model.ace$rank/length(hatvalues(model.ace)))
+which(abs(rstandard(model.ace))>3)
+
+
+ncvTest(model.ace)
+
+db19noNA <- db19noNA[-c(44,49),]
+db19noNA <- db19noNA[-c(17),]
+db19noNA <- db19noNA[-c(17),]
+db19noNA <- db19noNA[-c(69),]
+db19noNA <- db19noNA[-c(102),]
+db19noNA <- db19noNA[-c(102),]
+db19noNA <- db19noNA[-c(83),]
+db19noNA <- db19noNA[-c(54),]
+db19noNA <- db19noNA[-c(30),]
+db19noNA <- db19noNA[-c(54),]
+
+ACE <- ace(y = db19noNA[, 2], x = as.matrix(db19noNA[, -c(1, 2)]))
+ACEdf<-cbind.data.frame(NFCR2019=ACE$ty, ACE$tx) 
+model.ace <- lm(NFCR2019~., data = ACEdf)
+summary(model.ace)$adj.r.squared
+
+plev3 <- ggplot(data.frame(x=1:length(hatvalues(model.ace)),y = hatvalues(model.ace)),
+                        aes(x=x, y=y))+
+  geom_point()+
+ geom_line(color = "blue")+
+  labs(
+    x = "Data point",
+    y = "Leverage"
+  )+
+  geom_hline(yintercept = 3*model.ace$rank/length(hatvalues(model.ace)),
+             color = "red", linetype = "dashed")
+
+prstud3 <- ggplot(data.frame(x=1:length(rstudent(model.ace)),y = abs(rstudent(model.ace))),
+                        aes(x=x, y=y))+
+  geom_point()+
+ geom_line(color = "blue")+
+  labs(
+    x = "Data point",
+    y = "Absolute Studentized Residuals"
+  )+
+  geom_hline(yintercept = 3,
+             color = "red", linetype = "dashed")
+
+
+plev4 <- ggplot(data.frame(x=1:length(hatvalues(model.ace)),y = hatvalues(model.ace)),
+                        aes(x=x, y=y))+
+  geom_point()+
+ geom_line(color = "blue")+
+  labs(
+    x = "Data point",
+    y = "Leverage"
+  )+
+  geom_hline(yintercept = 3*mod4$rank/length(hatvalues(mod4)),
+             color = "red", linetype = "dashed")
+
+prstud4 <- ggplot(data.frame(x=1:length(rstudent(model.ace)),y = abs(rstudent(model.ace))),
+                        aes(x=x, y=y))+
+  geom_point()+
+ geom_line(color = "blue")+
+  labs(
+    x = "Data point",
+    y = "Absolute Studentized Residuals"
+  )+
+  geom_hline(yintercept = 3,
+             color = "red", linetype = "dashed")
+
+library(patchwork)
+pdf("images/outliernp.pdf")
+(plev3+plev4)/(prstud3+prstud4)
+dev.off()
+```
+
+### Test for homoscedasticity
+
+```{r echo  = TRUE, eval = TRUE}
+pdf("images/homoparanp.pdf")
+ggplot(data.frame(x=fitted(model.ace), y = rstandard(model.ace)), aes(x=x,y = y))+
+  geom_point(color = "blue" )+
+  geom_hline(yintercept = 0, linetype="dashed", color = "red")+
+  labs(
+    x = "Fitted Values",
+    y = "Standardized Residuals",
+  )
+dev.off()
+ncvTest(model.ace)
+```
+
+### Test for normality
+
+```{r echo  = TRUE, eval = TRUE}
+shapiro.test(resid(model.ace))
+pqq<-ggplot(data.frame(y=rstandard(mod4)), aes(sample = y))+
+  stat_qq(color="blue")+
+  stat_qq_line(color="red")+
+  labs(
+    x="Theoretical Quantiles",
+    y="Standardized Residuals"
+  )
+pdf("images/qqplotnp.pdf")
+pqq
+dev.off()
+```
+
+### Multicollinearity
+
+```{r echo = TRUE, eval = TRUE}
+library(car)
+vif(model.ace)
+```
+
+## Heavy Tail Analysis
+
+
+```{r echo = TRUE, eval = TRUE}
+# install.packages("devtools")
+# devtools::install_github("faosorios/heavy")
+library(heavy)
+
+## base model
+mod.heavy1 <- heavyLm(NFCR2019~.-RL2019-RQ2019-Country, data = db19noNA, family = Student(df = 1))
+summary(mod.heavy1)
+
+##
+mod.heavy2 <- heavyLm(NFCR2019~ yeo.johnson(ARR2019, 0) + WES2019 + yeo.johnson(PV2019, 
+    1.34) + yeo.johnson(VA2019, 2), data = db19noNA, family = Student(df = 1))
+summary(mod.heavy2)
+
+mod.heavy3 <- heavyLm(NFCR2019~ yeo.johnson(ARR2019, 0) + WES2019 + PV2019 + 
+    VA2019, data = db19noNA, family = Student(df = 1))
+summary(mod.heavy3)
+
+mod.heavy4 <- heavyLm(NFCR2019~  yeo.johnson(CPI2019, 0.5) + yeo.johnson(ARR2019, 
+    0) + WES2019 + PV2019 + VA2019 + RGDP2019-1, data = db19noNA, family = Student(df = 1))
+summary(mod.heavy4)
+
+mod.heavy5 <- heavyLm(NFCR2019 ~ yeo.johnson(ARR2019, 
+    0) + WES2019 + PV2019 + VA2019 + RGDP2019, data = db19noNA, family = Student(df = 1))
+summary(mod.heavy5)
+
+mod.heavy6 <- heavyLm(NFCR2019 ~ yeo.johnson(ARR2019, 
+    0) + WES2019 + PV2019 + VA2019 + RGDP2019, data = db19noNA, family = Cauchy())
+summary(mod.heavy6)
+## going with mod4
+plot(y= resid(mod.heavy4), x=fitted(mod.heavy4))
+abline(h=0)
+mean(resid(mod.heavy4))
 
 
 
+
+
+library(MASS)
+summary(rlm(NFCR2019 ~ yeo.johnson(ARR2019, 
+    0) + WES2019 + PV2019 + VA2019 + RGDP2019, data = db19noNA))
+```
+# Cauchy Errors
+
+```{r echo =  TRUE,eval = TRUE, fig.height = 4}
+pdf("images/cauchy.pdf")
+par(mfrow=c(1,2))
+hist(resid(mod4), freq = FALSE, main = "", xlab=  "Residuals", col="seagreen",
+     xlim = c(-1.2,1.2), ylim = c(0,1.4))
+x <- seq(-1,1, length = 1e5)
+curve(dcauchy(x, 0, 10^-.6), add=TRUE, col = "red", lty = 2, lwd=2)
+
+hist(resid(model.ace), freq = FALSE, main = "", xlab=  "Residuals", col="cyan",
+     xlim = c(-1.2,1.2), ylim = c(0,1.4))
+curve(dcauchy(x, 0, 10^-.6), add=TRUE, col = "red", lty = 2, lwd=2)
+dev.off()
+
+
+ks.test(resid(mod4), pcauchy, 0, 10^-.6)
+ks.test(resid(model.ace), pcauchy, 0, 10^-.6)
+```

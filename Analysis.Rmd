@@ -12,15 +12,16 @@ knitr::opts_chunk$set(echo = TRUE)
 # Read and create databases for analysis
 
 ```{r echo = TRUE,eval = FALSE}
-#getwd()
 database <- read.table("database.csv", header = TRUE, sep = ",")
 #View(database)
 #library(tidyverse)
+database <- database %>%
+  mutate(RGDP2019 = (GDP2019-GDP2018)/GDP2018)
 db19 <- database %>%
-  select(matches('country|2019'))
+  select(matches('country|2019')) # add RGDP, rate of change in GDP from 2018-2019
+db19 <- select(db19, -GDP2019) # drop GDP2019 
 #View(db19)
 dim(db19)
-
 # formatting NFCR column
 db19[, "NFCR2019"] <- sapply(db19[,"NFCR2019"], function (x) gsub('%', '', x))
 db19[,"NFCR2019"] <- as.numeric(db19[,"NFCR2019"])
@@ -28,13 +29,157 @@ db19[,"NFCR2019"] <- as.numeric(db19[,"NFCR2019"])
 
 #check the number of NAs per column
 apply(is.na(db19), 2, sum)
+
+db19woNA <- na.omit(db19) # db19 without NA
 ```
 
 # Scatterplot Matrix
 
 ```{r echo = TRUE, eval = TRUE}
 library(GGally)
-ggpairs(db19[, 2:12])
+ggpairs(db19woNA[, 2:12], progress = FALSE)
+```
+
+# Transformation of Predictors
+
+```{r echo = TRUE, EVAL = TRUE}
+#install.packages("car")
+library(car)
+summary(powerTransform(cbind(CPI2019,  AML2019,  ARR2019,  WES2019, GE2019,   PV2019,   RQ2019,   RL2019,   VA2019, RGDP2019)~1, data = db19woNA, family = 'yjPower'))
+```
+# Transformation of Response
+
+```{r echp = TRUE, eval = TRUE}
+set.seed(57)
+summary(powerTransform(lm(  1/(NFCR2019+runif(nrow(db19woNA), max=0.5)) ~ CPI2019 + AML2019 + log(ARR2019) + WES2019 +
+                            I(GE2019^1.2) + I(PV2019^.4) + RQ2019 + RL2019 + I(VA2019^2) +
+                            RGDP2019, data= db19woNA ), family = 'yjPower'))
+```
+# Model
+
+
+```{r ecgho = TRUE, eval = TRUE}
+set.seed(57)
+mod1 <- lm(1/(NFCR2019 + runif(nrow(db19woNA), max=0.5)) ~ CPI2019 + AML2019 + log(ARR2019) + WES2019 +
+                            I(GE2019^1.2) + I(PV2019^1.4) + RQ2019 + RL2019 + I(VA2019^2) +
+                            RGDP2019, data= db19woNA)
+summary(mod1)
+```
+
+```{r echo = TRUE, eval = TRUE}
+set.seed(57)
+pairs(formula = 1/(NFCR2019 + runif(nrow(db19woNA), max = 0.5)) ~ 
+    CPI2019 + AML2019 + log(ARR2019) + WES2019 + I(GE2019^1.2) + 
+        I(PV2019^1.4) + RQ2019 + RL2019 + I(VA2019^2) + RGDP2019, 
+    data = db19woNA)
+```
+
+
+# Variable Selection
+
+```{r echo = TRUE, eval = TRUE}
+#install.packages("leaps")
+library(leaps)
+summary_best_subset <- summary(regsubsets(NFCR2019~ 
+    CPI2019 + AML2019 + log(ARR2019) + WES2019 + GE2019 + 
+        PV2019 + RQ2019 + RL2019 + VA2019 + RGDP2019, 
+    data = db19woNA))
+which.max(summary_best_subset$adjr2)
+```
+```{r echo = TRUE, eval = TRUE}
+summary_best_subset <- summary(regsubsets(NFCR2019~ 
+    CPI2019 + AML2019 + ARR2019 + WES2019 + GE2019 + 
+        PV2019 + RQ2019 + RL2019 + VA2019 + RGDP2019, 
+    data = db19woNA))
+which.max(summary_best_subset$adjr2)
+```
+
+
+
+
+
+
+
+
+
+```{r echo = TRUE, eval = TRUE}
+#install.packages("olsrr")
+library(olsrr)
+k <- ols_step_both_p(lm(NFCR2019~ 
+    CPI2019 + AML2019 + log(ARR2019) + WES2019 + GE2019 + 
+        PV2019 + RQ2019 + RL2019 + VA2019 + RGDP2019, 
+    data = db19woNA))
+plot(k)
+summary(k)
+```
+
+```{r}
+mod0 <- lm(NFCR2019~.-Country-RL2019-RQ2019-GE2019, data = db19woNA)
+summary(mod0)
+#plot(mod0)
+#library(car)
+vif(mod0)
+#library(GGally)
+ggpairs(db19woNA[, c(2,3,4,5,6,8,11,12)], progress= FALSE)
+```
+
+
+See that `RL2019` and `CPI2019` are highly correlated (0.967); RQ and GE are also same(0.946)
+
+So, choose CPI as - all non-negative, no NAs.
+
+Note - base model - includes everything has adj R^2 0.166. worst possible case!
+- RL : 0.1658
+- RL, RQ: 0.1587
+- RL, RQ, GE: 0.1519
+
+# Transformation of Predictors
+
+```{r echo = TRUE, EVAL = TRUE}
+#install.packages("car")
+library(car)
+summary(powerTransform(cbind(CPI2019,  AML2019,  ARR2019,  WES2019, PV2019,
+                             VA2019, GDP2019)~1, data = db19woNA, family = 'yjPower'))
+```
+# Variable Selection
+
+```{r echo = TRUE, eval = TRUE}
+#install.packages("leaps")
+library(leaps)
+(summary_best_subset <- summary(regsubsets(1/(1+exp(-db19woNA[,"NFCR2019"]))~ 
+    sqrt(CPI2019) + AML2019 + log(ARR2019) + WES2019 + 
+        PV2019 + VA2019 + log(GDP2019), 
+    data = db19woNA)))
+which.max(summary_best_subset$adjr2)
+
+mod1 <- lm(1/(1+exp(-db19woNA[,"NFCR2019"]))~ 
+    AML2019 + log(ARR2019) + WES2019 + 
+       PV2019 + VA2019 + log(GDP2019), 
+    data = db19woNA) 
+summary(mod1)
+
+summary(powerTransform(lm(1/(1+exp(-db19woNA[,"NFCR2019"])) ~ sqrt(CPI2019) + AML2019 + log(ARR2019) + WES2019 + 
+        I(PV2019^1.37) + I(VA2019^2) + log(GDP2019), 
+    data = db19woNA), family = 'yjPower'))
+
+
+moddata <- data.frame(1/(1+exp(-db19woNA[,"NFCR2019"])),sqrt(db19woNA[, "CPI2019"]), db19woNA[, "AML2019"],
+                 log(db19woNA[,"ARR2019"]), db19woNA[,"WES2019"], db19woNA[,"PV2019"],
+                 db19woNA[,"VA2019"]^2, log(db19woNA[,"GDP2019"]))
+
+ggpairs(moddata, progress = FALSE,  
+                 columnLabels  = c("NFCR", "CPI", "AML", "ARR", "WES", "PV",
+                             "VA", "GDP"))
+```
+# model fit after all sorts of transformations
+
+
+
+```{r e cho = TRUE, eval =TRUE }
+mod3 <- lm(NFCR2019 ~ log(ARR2019) + WES2019 + 
+        PV2019 + VA2019 + log(GDP2019), 
+    data = db19woNA)
+summary(mod3)
 ```
 
 
