@@ -1,6 +1,6 @@
 ---
 title: "Analysis3"
-author: "Arkajyoti Bhattacharjee"
+author: "Arkajyoti Bhattacharjee, Rezoanoor Rahman"
 date: "`r Sys.Date()`"
 output: pdf_document
 ---
@@ -669,12 +669,22 @@ ks.test(resid(model.ace), pcauchy, 0, 10^-.6)
 ```
 
 
-# RRR
+# Comparison of Models
 
 
 
 
 ```{r}
+
+db14 <- database %>%
+  select(matches('country|2014')) # add RGDP, rate of change in GDP from 2018-2019
+db14 <- select(db15, -GDP2014) # drop GDP2019 
+
+
+db14[, "NFCR2014"] <- sapply(db14[,"NFCR2014"], function (x) gsub('%', '', x))
+db14[,"NFCR2014"] <- as.numeric(db14[,"NFCR2014"])
+
+
 ARR<-yeo.johnson(na.omit(db14)[,"ARR2014"], 0)
 mod3<-lm(NFCR2014~ARR+WES2014+PV2014+VA2014+RGDP2014, data = na.omit(db14))
 
@@ -743,7 +753,7 @@ write.csv(D_F,"D_F.csv")
 ```
 
 
-
+# World Map
 
 
 ```{r}
@@ -798,7 +808,6 @@ b+scale_fill_gradient(low="red", high="blue")+
 dev.off()
 
 ```
-
 
 
 
