@@ -1,1 +1,1 @@
-# STAT6950Project
+# Effect of economic growth on deforestation
