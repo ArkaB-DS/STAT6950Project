@@ -2,7 +2,9 @@
 title: "Analysis3"
 author: "Arkajyoti Bhattacharjee"
 date: "`r Sys.Date()`"
-output: pdf_document
+output:
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
@@ -11,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Read and create databases for analysis
 
-```{r echo = TRUE,eval = FALSE}
+```{r echo = TRUE,eval = TRUE}
 database <- read.table("database.csv", header = TRUE, sep = ",")
 library(tidyverse)
 database <- database %>%
@@ -149,7 +151,7 @@ summary(model.naive3)
 ```
 ## Transformation of Predictors
 
-```{r echo = TRUE, EVAL = TRUE}
+```{r echo = TRUE, eval = TRUE}
 library(car)
 summary(powerTransform(cbind(CPI2019, AML2019, log(ARR2019),  WES2019,
                              PV2019, RQ2019,VA2019, RGDP2019)~1, data = db19,
@@ -169,7 +171,7 @@ summary(modx)
 ```
 ## Variable Selection
 
-```{r echo = TRUE, EVAL = TRUE}
+```{r echo = TRUE, eval = TRUE}
 library(leaps)
 library(VGAM)
 (summary_best_subset1<-summary(regsubsets(NFCR2019~yeo.johnson(CPI2019,0.5)+
@@ -363,7 +365,7 @@ ggplot(data.frame(x=fitted(mod4), y = rstandard(mod4)), aes(x=x,y = y))+
     y = "Standardized Residuals",
   )
 dev.off()
-ncvTest(mod4)
+#ncvTest(mod4)
 ```
 
 ### Test for normality
@@ -761,10 +763,7 @@ write.csv(D_F,"D_F.csv")
 # World Map
 
 
-```{r}
-rm(list=ls())
-
-
+```{r eval=TRUE}
 library(readxl)
 library(tidyverse)
 library(xlsx)
@@ -774,14 +773,15 @@ library(ggmap)
 library(rnaturalearth)
 library(rnaturalearthdata)
 
-setwd("D:/OSU Course Materials/6950 - Applied Statistics 2/Project")
+#setwd("D:/OSU Course Materials/6950 - Applied Statistics 2/Project")
 
-Data=read.xlsx("database.xlsx",sheetIndex = 1)
-
-
-Data <- Data %>%
+Data <- database %>%
   mutate(RGDP2019 = (GDP2019-GDP2018)/GDP2018,
          RGDP2014 = (GDP2014-GDP2013)/GDP2013)
+
+Data[, "NFCR2019"] <- sapply(Data[,"NFCR2019"], function (x) gsub('%', '', x))
+Data[,"NFCR2019"] <- as.numeric(Data[,"NFCR2019"])
+
 
 
 Data$name=Data$Country
@@ -812,5 +812,4 @@ pdf("Map_rgdp.pdf")
 b+scale_fill_gradient(low="red", high="blue")+
   coord_sf(crs = "+proj=laea +lat_0=0 +lon_0=0 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +units=m +no_defs ")
 dev.off()
-
 ```
